@@ -77,7 +77,7 @@ import java.util.zip.GZIPOutputStream;
 
 public final class ConfigTransformer {
     // Underlying version of NIFI will be using
-    public static final String NIFI_VERSION = "1.2.0";
+    public static final String NIFI_VERSION = "1.4.0";
     public static final String ROOT_GROUP = "Root-Group";
     public static final String DEFAULT_PROV_REPORTING_TASK_CLASS = "org.apache.nifi.reporting.SiteToSiteProvenanceReportingTask";
     public static final String NIFI_VERSION_KEY = "nifi.version";
@@ -214,8 +214,9 @@ public final class ConfigTransformer {
             orderedProperties.setProperty("nifi.content.repository.directory.default", "./content_repository");
             orderedProperties.setProperty("nifi.content.repository.always.sync", Boolean.toString(contentRepoProperties.getAlwaysSync()));
 
-            orderedProperties.setProperty("nifi.provenance.repository.implementation", "org.apache.nifi.provenance.MiNiFiPersistentProvenanceRepository",
+            orderedProperties.setProperty("nifi.provenance.repository.implementation", provenanceRepositorySchema.getProvenanceRepository(),
                     System.lineSeparator() + "# Provenance Repository Properties");
+
             orderedProperties.setProperty("nifi.provenance.repository.rollover.time", provenanceRepositorySchema.getProvenanceRepoRolloverTimeKey());
 
             orderedProperties.setProperty("nifi.provenance.repository.buffer.size", "10000", System.lineSeparator() + "# Volatile Provenance Respository Properties");
