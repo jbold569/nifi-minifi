@@ -1180,7 +1180,7 @@ public class RunMiNiFi implements QueryableStatusAggregator, ConfigurationFileHo
         final String confDir = getBootstrapProperties().getProperty(CONF_DIR_KEY);
         final File configFile = new File(getBootstrapProperties().getProperty(MINIFI_CONFIG_FILE_KEY));
         try (InputStream inputStream = new FileInputStream(configFile)) {
-            ByteBuffer tempConfigFile = performTransformation(inputStream, confDir);
+            ByteBuffer tempConfigFile = performTransformation(inputStream, confDir, getBootstrapProperties());
             currentConfigFileReference.set(tempConfigFile.asReadOnlyBuffer());
         } catch (ConfigurationChangeException e) {
             defaultLogger.error("The config file is malformed, unable to start.", e);
@@ -1270,7 +1270,7 @@ public class RunMiNiFi implements QueryableStatusAggregator, ConfigurationFileHo
                                 defaultLogger.info("Swap file exists, MiNiFi failed trying to change configuration. Reverting to old configuration.");
 
                                 try {
-                                    ByteBuffer tempConfigFile = performTransformation(new FileInputStream(swapConfigFile), confDir);
+                                    ByteBuffer tempConfigFile = performTransformation(new FileInputStream(swapConfigFile), confDir, getBootstrapProperties());
                                     currentConfigFileReference.set(tempConfigFile.asReadOnlyBuffer());
                                 } catch (ConfigurationChangeException e) {
                                     defaultLogger.error("The swap file is malformed, unable to restart from prior state. Will not attempt to restart MiNiFi. Swap File should be cleaned up manually.");
@@ -1630,7 +1630,7 @@ public class RunMiNiFi implements QueryableStatusAggregator, ConfigurationFileHo
                             newConfigBais.reset();
 
                             logger.info("Performing transformation for input and saving outputs to {}", confDir);
-                            ByteBuffer tempConfigFile = performTransformation(newConfigBais, confDir);
+                            ByteBuffer tempConfigFile = performTransformation(newConfigBais, confDir, bootstrapProperties);
                             runner.currentConfigFileReference.set(tempConfigFile.asReadOnlyBuffer());
 
                             try {
@@ -1638,7 +1638,7 @@ public class RunMiNiFi implements QueryableStatusAggregator, ConfigurationFileHo
                                 restartInstance();
                             } catch (Exception e) {
                                 logger.debug("Transformation of new config file failed after transformation into Flow.xml and nifi.properties, reverting.");
-                                ByteBuffer resetConfigFile = performTransformation(new FileInputStream(swapConfigFile), confDir);
+                                ByteBuffer resetConfigFile = performTransformation(new FileInputStream(swapConfigFile), confDir, bootstrapProperties);
                                 runner.currentConfigFileReference.set(resetConfigFile.asReadOnlyBuffer());
                                 throw e;
                             }
@@ -1701,11 +1701,11 @@ public class RunMiNiFi implements QueryableStatusAggregator, ConfigurationFileHo
         }
     }
 
-    private static ByteBuffer performTransformation(InputStream configIs, String configDestinationPath) throws ConfigurationChangeException, IOException {
+    private static ByteBuffer performTransformation(InputStream configIs, String configDestinationPath, Properties bootstrapProperties) throws ConfigurationChangeException, IOException {
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                 TeeInputStream teeInputStream = new TeeInputStream(configIs, byteArrayOutputStream)) {
 
-            ConfigTransformer.transformConfigFile(teeInputStream, configDestinationPath);
+            ConfigTransformer.transformConfigFile(teeInputStream, configDestinationPath, bootstrapProperties);
 
             return ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
         } catch (ConfigurationChangeException e){
