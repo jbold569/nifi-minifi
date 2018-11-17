@@ -72,6 +72,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
@@ -86,27 +87,27 @@ public final class ConfigTransformer {
     private ConfigTransformer() {
     }
 
-    public static void transformConfigFile(String sourceFile, String destPath) throws Exception {
+    public static void transformConfigFile(String sourceFile, String destPath, Properties bootstrapProperties) throws Exception {
         File ymlConfigFile = new File(sourceFile);
         InputStream ios = new FileInputStream(ymlConfigFile);
 
-        transformConfigFile(ios, destPath);
+        transformConfigFile(ios, destPath, bootstrapProperties);
     }
 
-    public static void transformConfigFile(InputStream sourceStream, String destPath) throws Exception {
+    public static void transformConfigFile(InputStream sourceStream, String destPath, Properties bootstrapProperties) throws Exception {
         ConvertableSchema<ConfigSchema> convertableSchema = throwIfInvalid(SchemaLoader.loadConvertableSchemaFromYaml(sourceStream));
         ConfigSchema configSchema = throwIfInvalid(convertableSchema.convert());
 
         // Create nifi.properties and flow.xml.gz in memory
         ByteArrayOutputStream nifiPropertiesOutputStream = new ByteArrayOutputStream();
-        writeNiFiProperties(configSchema, nifiPropertiesOutputStream);
+        writeNiFiProperties(configSchema, bootstrapProperties, nifiPropertiesOutputStream);
 
         writeFlowXmlFile(configSchema, destPath);
 
         // Write nifi.properties and flow.xml.gz
         writeNiFiPropertiesFile(nifiPropertiesOutputStream, destPath);
     }
-
+    
     private static <T extends Schema> T throwIfInvalid(T schema) throws InvalidConfigurationException {
         if (!schema.isValid()) {
             throw new InvalidConfigurationException("Failed to transform config file due to:["
@@ -147,8 +148,8 @@ public final class ConfigTransformer {
             }
         }
     }
-
-    protected static void writeNiFiProperties(ConfigSchema configSchema, OutputStream outputStream) throws IOException, ConfigurationChangeException {
+    
+    protected static void writeNiFiProperties(ConfigSchema configSchema, Properties bootstrapProperties, OutputStream outputStream) throws IOException, ConfigurationChangeException {
         try {
             CorePropertiesSchema coreProperties = configSchema.getCoreProperties();
             FlowFileRepositorySchema flowfileRepoSchema = configSchema.getFlowfileRepositoryProperties();
@@ -238,13 +239,22 @@ public final class ConfigTransformer {
             orderedProperties.setProperty("nifi.sensitive.props.algorithm", sensitiveProperties.getAlgorithm());
             orderedProperties.setProperty("nifi.sensitive.props.provider", sensitiveProperties.getProvider());
 
-            orderedProperties.setProperty("nifi.security.keystore", securityProperties.getKeystore(), "");
-            orderedProperties.setProperty("nifi.security.keystoreType", securityProperties.getKeystoreType());
-            orderedProperties.setProperty("nifi.security.keystorePasswd", securityProperties.getKeystorePassword());
-            orderedProperties.setProperty("nifi.security.keyPasswd", securityProperties.getKeyPassword());
-            orderedProperties.setProperty("nifi.security.truststore", securityProperties.getTruststore());
-            orderedProperties.setProperty("nifi.security.truststoreType", securityProperties.getTruststoreType());
-            orderedProperties.setProperty("nifi.security.truststorePasswd", securityProperties.getTruststorePassword());
+            // Jason Bolden 11/17/2018
+            String keystore = "".equals(securityProperties.getKeystore())? bootstrapProperties.getProperty("nifi.security.keystore",""):securityProperties.getKeystore();
+            String keystoreType = "".equals(securityProperties.getKeystoreType())? bootstrapProperties.getProperty("nifi.security.keystoreType",""):securityProperties.getKeystoreType();
+            String keystorePasswd = "".equals(securityProperties.getKeystorePassword())? bootstrapProperties.getProperty("nifi.security.keystorePasswd",""):securityProperties.getKeystorePassword();
+            String keyPasswd = "".equals(securityProperties.getKeyPassword())? bootstrapProperties.getProperty("nifi.security.keyPasswd",""):securityProperties.getKeyPassword();
+            String truststore = "".equals(securityProperties.getTruststore())? bootstrapProperties.getProperty("nifi.security.truststore",""):securityProperties.getTruststore();
+            String truststoreType = "".equals(securityProperties.getTruststoreType())? bootstrapProperties.getProperty("nifi.security.truststoreType",""):securityProperties.getTruststoreType();
+            String truststorePasswd = "".equals(securityProperties.getTruststorePassword())? bootstrapProperties.getProperty("nifi.security.truststorePasswd",""):securityProperties.getTruststorePassword();
+            
+            orderedProperties.setProperty("nifi.security.keystore", keystore, "");
+            orderedProperties.setProperty("nifi.security.keystoreType", keystoreType);
+            orderedProperties.setProperty("nifi.security.keystorePasswd", keystorePasswd);
+            orderedProperties.setProperty("nifi.security.keyPasswd", keyPasswd);
+            orderedProperties.setProperty("nifi.security.truststore", truststore);
+            orderedProperties.setProperty("nifi.security.truststoreType", truststoreType);
+            orderedProperties.setProperty("nifi.security.truststorePasswd", truststorePasswd);
             orderedProperties.setProperty("nifi.security.needClientAuth", "");
             orderedProperties.setProperty("nifi.security.user.credential.cache.duration", "24 hours");
             orderedProperties.setProperty("nifi.security.user.authority.provider", "file-provider");
